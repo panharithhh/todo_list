@@ -28,7 +28,7 @@ PostgreSQL.
    ```bash
    cd nest-backend
    npm install
-   npm run start:dev
+   npm run dev
    ```
 
    The first start creates the `todos` table and adds two sample todos.
