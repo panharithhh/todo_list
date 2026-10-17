@@ -1,0 +1,19 @@
+# Installed libraries (npm install brings them back)
+node_modules/
+
+# Build output (npm run build makes it again)
+dist/
+build/
+*.tsbuildinfo
+coverage/
+
+# Local secrets and settings
+.env
+.env.*
+
+# Logs
+*.log
+
+# OS and editor files
+.DS_Store
+.idea/
