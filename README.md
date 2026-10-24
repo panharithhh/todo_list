@@ -31,7 +31,9 @@ PostgreSQL.
    npm run dev
    ```
 
-   The first start creates the `todos` table and adds two sample todos.
+   Copy `.env.example` to `.env` first and set the two JWT secrets. The first
+   start runs the database migration and, outside production, adds a demo
+   account (`demo@example.com` / `password123`) with two todos.
 
 3. Start the frontend, in another terminal:
 
@@ -45,14 +47,31 @@ PostgreSQL.
 
 ## API
 
+Every route needs `Authorization: Bearer <accessToken>` except the ones marked public.
+
 | Request | Body | Does |
 | --- | --- | --- |
-| `GET /todos` | | List all todos |
+| `POST /auth/signup` (public) | `{ "email", "password" }` | Make an account (409 if the email is taken) |
+| `POST /auth/login` (public) | `{ "email", "password" }` | Returns `{ user, accessToken }` and sets the refresh cookie |
+| `POST /auth/refresh` (public) | | Swaps the refresh cookie for a new access token and a new cookie |
+| `POST /auth/logout` (public) | | Revokes the refresh token and clears the cookie |
+| `GET /auth/me` | | The signed-in user |
+| `GET /todos` | | List your todos |
 | `POST /todos` | `{ "title": "Buy milk", "status": "To Do" }` | Add a todo (status is optional) |
-| `PATCH /todos/:id` | `{ "title": "..." }` or `{ "status": "Done" }` | Change a todo |
-| `DELETE /todos/:id` | | Delete a todo |
+| `PATCH /todos/:id` | `{ "title": "..." }` or `{ "status": "Done" }` | Change one of your todos |
+| `DELETE /todos/:id` | | Delete one of your todos |
+| `GET /admin/todos` | | Everyone's todos (admins only) |
 
-`status` is one of `To Do`, `In Progress` or `Done`.
+`status` is one of `To Do`, `In Progress` or `Done`. Access tokens last 15
+minutes; the frontend refreshes them automatically. Each refresh token works
+once, and replaying an old one ends the session.
+
+Signup always makes a `user`. To make an admin:
+
+```bash
+docker exec nest_postgres psql -U postgres -d tododb \
+  -c "UPDATE users SET role = 'admin' WHERE email = 'you@example.com'"
+```
 
 ## Tests
 

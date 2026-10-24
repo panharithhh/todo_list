@@ -1,6 +1,7 @@
-import { Entity, PrimaryGeneratedColumn, Column, CreateDateColumn } from 'typeorm';
+import { Entity, PrimaryGeneratedColumn, Column, CreateDateColumn, ManyToOne, JoinColumn } from 'typeorm';
+import { User } from './user.entity.js';
 
-@Entity('todos') // 👈 Name of the table in PostgreSQL
+@Entity('todos')
 export class Todo {
   @PrimaryGeneratedColumn()
   id: number;
@@ -10,6 +11,13 @@ export class Todo {
 
   @Column({ default: 'To Do' })
   status: string;
+
+  @Column({ type: 'uuid' })
+  ownerId: string;
+
+  @ManyToOne(() => User, (user) => user.todos, { onDelete: 'CASCADE' })
+  @JoinColumn({ name: 'ownerId' })
+  owner: User;
 
   @CreateDateColumn()
   createdAt: Date;
