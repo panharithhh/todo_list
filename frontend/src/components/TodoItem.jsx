@@ -1,9 +1,20 @@
 import { useState } from 'react'
 import { STATUSES, statusClass } from '../statuses.js'
 
-export default function TodoItem({ todo, onUpdate, onDelete }) {
+export default function TodoItem({ todo, readOnly, onUpdate, onDelete }) {
   const [editing, setEditing] = useState(false)
   const [draft, setDraft] = useState(todo.title)
+
+  // Someone else's todo in the admin view
+  if (readOnly) {
+    return (
+      <li className="item">
+        <span className={`grow title ${todo.status === 'Done' ? 'done' : ''}`}>{todo.title}</span>
+        <span className="muted">{todo.ownerEmail}</span>
+        <span className={`status ${statusClass(todo.status)}`}>{todo.status}</span>
+      </li>
+    )
+  }
 
   async function save() {
     if (!draft.trim()) return
