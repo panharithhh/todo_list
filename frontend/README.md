@@ -12,7 +12,7 @@ Start the database and the backend first:
 cd ../nest-backend
 docker compose up -d
 npm install
-npm run start:dev
+npm run dev
 ```
 
 Then the frontend:

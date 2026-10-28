@@ -1,78 +1,78 @@
-import { BadRequestException, Injectable, NotFoundException, OnModuleInit } from '@nestjs/common';
+import {
+    Injectable,
+    NotFoundException,
+    OnModuleInit,
+} from '@nestjs/common';
+import { ConfigService } from '@nestjs/config';
 import { InjectRepository } from '@nestjs/typeorm';
 import { Repository } from 'typeorm';
+import * as argon2 from 'argon2';
 
 import { Todo } from './todo.entity.js';
-
-// Same three statuses as the dropdown in the frontend (frontend/src/statuses.js)
-export const STATUSES = ['To Do', 'In Progress', 'Done'];
-
-// What the frontend sends in a POST or PATCH body
-export interface TodoChanges {
-    title?: unknown;
-    status?: unknown;
-}
+import { User } from './user.entity.js';
+import { CreateTodoDto, UpdateTodoDto } from './dto/todo.dto.js';
 
 @Injectable()
 export class AppService implements OnModuleInit {
     constructor(
-        // 👈 Dependency Injection gives you the PostgreSQL Todo table repository
         @InjectRepository(Todo)
         private readonly todoRepository: Repository<Todo>,
+        @InjectRepository(User)
+        private readonly userRepository: Repository<User>,
+        private readonly config: ConfigService,
     ) { }
 
-    // Inserts sample rows if the database is currently empty
+    // Outside production, an empty database gets a demo account with two todos
     async onModuleInit() {
-        const count = await this.todoRepository.count();
-        if (count === 0) {
-            await this.todoRepository.save([
-                { title: 'Stored in Docker PostgreSQL 🐘', status: 'Done' },
-                { title: 'Managed with TypeORM in NestJS 🦁', status: 'In Progress' },
-            ]);
-        }
+        if (this.config.get('NODE_ENV') === 'production') return;
+        if (await this.userRepository.count()) return;
+
+        const demo = await this.userRepository.save(
+            this.userRepository.create({
+                email: 'demo@example.com',
+                password: await argon2.hash('password123'),
+                role: 'user',
+            }),
+        );
+        await this.todoRepository.save([
+            { title: 'Stored in Docker PostgreSQL 🐘', status: 'Done', ownerId: demo.id },
+            { title: 'Managed with TypeORM in NestJS 🦁', status: 'In Progress', ownerId: demo.id },
+        ]);
     }
 
-    // SELECT * FROM todos ORDER BY id ASC;
-    async getTodos(): Promise<Todo[]> {
-        return await this.todoRepository.find({
+    getTodos(ownerId: string): Promise<Todo[]> {
+        return this.todoRepository.find({ where: { ownerId }, order: { id: 'ASC' } });
+    }
+
+    // Admin view: every user's todos, with the owner's email
+    getAllTodos(): Promise<Todo[]> {
+        return this.todoRepository.find({
+            relations: { owner: true },
             order: { id: 'ASC' },
         });
     }
 
-    // INSERT INTO todos (title, status) VALUES (...) RETURNING *;
-    async createTodo(changes: TodoChanges): Promise<Todo> {
-        const title = this.checkTitle(changes.title);
-        const status = changes.status === undefined ? 'To Do' : this.checkStatus(changes.status);
-        return await this.todoRepository.save(this.todoRepository.create({ title, status }));
+    createTodo(ownerId: string, dto: CreateTodoDto): Promise<Todo> {
+        const todo = this.todoRepository.create({
+            title: dto.title.trim(),
+            status: dto.status ?? 'To Do',
+            ownerId,
+        });
+        return this.todoRepository.save(todo);
     }
 
-    // UPDATE todos SET title = ..., status = ... WHERE id = ...;
-    async updateTodo(id: number, changes: TodoChanges): Promise<Todo> {
-        const todo = await this.todoRepository.findOneBy({ id });
+    async updateTodo(ownerId: string, id: number, dto: UpdateTodoDto): Promise<Todo> {
+        // Someone else's todo looks the same as a missing one
+        const todo = await this.todoRepository.findOneBy({ id, ownerId });
         if (!todo) throw new NotFoundException(`Todo ${id} not found`);
 
-        if (changes.title !== undefined) todo.title = this.checkTitle(changes.title);
-        if (changes.status !== undefined) todo.status = this.checkStatus(changes.status);
+        if (dto.title !== undefined) todo.title = dto.title.trim();
+        if (dto.status !== undefined) todo.status = dto.status;
         return await this.todoRepository.save(todo);
     }
 
-    // DELETE FROM todos WHERE id = ...;
-    async deleteTodo(id: number): Promise<void> {
-        const result = await this.todoRepository.delete(id);
+    async deleteTodo(ownerId: string, id: number): Promise<void> {
+        const result = await this.todoRepository.delete({ id, ownerId });
         if (!result.affected) throw new NotFoundException(`Todo ${id} not found`);
-    }
-
-    private checkTitle(title: unknown): string {
-        if (typeof title !== 'string' || !title.trim()) {
-            throw new BadRequestException('title must be a non-empty string');
-        }
-        return title.trim();
-    }
-
-    private checkStatus(status: unknown): string {
-        if (typeof status !== 'string' || !STATUSES.includes(status)) {
-            throw new BadRequestException(`status must be one of: ${STATUSES.join(', ')}`);
-        }
-        return status;
     }
 }

@@ -1,33 +1,49 @@
-import { Body, Controller, Delete, Get, HttpCode, Param, ParseIntPipe, Patch, Post } from '@nestjs/common';
+import {
+    Body,
+    Controller,
+    Delete,
+    Get,
+    HttpCode,
+    Param,
+    ParseIntPipe,
+    Patch,
+    Post,
+} from '@nestjs/common';
 import { AppService } from './app.service.js';
-import type { TodoChanges } from './app.service.js';
+import { CreateTodoDto, UpdateTodoDto } from './dto/todo.dto.js';
+import { CurrentUser, type AuthUser } from './auth/decorators.js';
 
+// Every route here sees only the signed-in user's todos
 @Controller('todos')
 export class AppController {
     constructor(private readonly appService: AppService) { }
 
     // GET /todos
     @Get()
-    async getTodos() {
-        return await this.appService.getTodos();
+    async getTodos(@CurrentUser() user: AuthUser) {
+        return await this.appService.getTodos(user.id);
     }
 
-    // POST /todos  { "title": "...", "status": "To Do" }
+    // POST /todos
     @Post()
-    async createTodo(@Body() body: TodoChanges = {}) {
-        return await this.appService.createTodo(body);
+    async createTodo(@CurrentUser() user: AuthUser, @Body() body: CreateTodoDto) {
+        return await this.appService.createTodo(user.id, body);
     }
 
-    // PATCH /todos/5  { "title": "..." } or { "status": "Done" }
+    // PATCH /todos/:id
     @Patch(':id')
-    async updateTodo(@Param('id', ParseIntPipe) id: number, @Body() body: TodoChanges = {}) {
-        return await this.appService.updateTodo(id, body);
+    async updateTodo(
+        @CurrentUser() user: AuthUser,
+        @Param('id', ParseIntPipe) id: number,
+        @Body() body: UpdateTodoDto,
+    ) {
+        return await this.appService.updateTodo(user.id, id, body);
     }
 
-    // DELETE /todos/5
+    // DELETE /todos/:id
     @Delete(':id')
     @HttpCode(204)
-    async deleteTodo(@Param('id', ParseIntPipe) id: number) {
-        await this.appService.deleteTodo(id);
+    async deleteTodo(@CurrentUser() user: AuthUser, @Param('id', ParseIntPipe) id: number) {
+        await this.appService.deleteTodo(user.id, id);
     }
 }
