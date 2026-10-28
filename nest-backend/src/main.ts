@@ -11,10 +11,15 @@ async function bootstrap() {
   // Enable cookie parser middleware
   app.use(cookieParser());
 
-  // Enable CORS with credentials support for cookies
-  const corsOrigin = config.get<string>('CORS_ORIGIN');
+  // Enable CORS with credentials support for cookies.
+  // Only explicitly allowlisted origins may send credentialed requests.
+  const allowedOrigins = config
+    .get<string>('CORS_ORIGIN', 'http://localhost:5180')
+    .split(',')
+    .map((origin) => origin.trim())
+    .filter(Boolean);
   app.enableCors({
-    origin: corsOrigin ? corsOrigin.split(',') : true,
+    origin: allowedOrigins,
     credentials: true,
   });
 
